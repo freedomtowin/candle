@@ -375,17 +375,23 @@ pub fn queue_conv2d_transpose(
     );
     let bind_group =
         dev.create_bind_group_input2(buffer_dest, input.buffer(), kernel.buffer(), dtype.into());
+
+
+    let total_elem_count = params
+        .out_w()
+        .checked_mul(params.out_h())
+        .and_then(|x| x.checked_mul(params.c_out))
+        .and_then(|x| x.checked_mul(params.b_size))
+        .and_then(|x| x.checked_mul(kernel.layout().shape().elem_count()))
+        .ok_or("Overflow in total element count for convolution dispatch").unwrap();
+
     queue.enqueue_workgroups(
         pipeline,
         bind_group,
         ((params.out_w() - params.output_padding) as u32 + 15) / 16,
         ((params.out_h() - params.output_padding) as u32 + 15) / 16,
         params.c_out as u32,
-        params.out_w()
-            * params.out_h()
-            * params.c_out
-            * params.b_size
-            * kernel.layout().shape().elem_count(),
+        total_elem_count,
     );
     Ok(())
 }
