@@ -709,10 +709,14 @@ impl crate::backend::BackendStorage for WgpuStorage {
         kernel_l: &crate::Layout,
         params: &crate::conv::ParamsConvTranspose2D,
     ) -> crate::Result<Self> {
-        let buffer_dest = self.device().alloc_uninit_size(
-            self.dtype,
-            params.b_size * params.c_out * params.out_h() * params.out_w()
-        );
+        let numel = params
+            .b_size
+            .checked_mul(params.c_out)
+            .and_then(|x| x.checked_mul(params.out_h()))
+            .and_then(|x| x.checked_mul(params.out_w()))
+            .ok_or("Overflow in output shape for conv_transpose2d buffer allocation").unwrap();
+
+        let buffer_dest = self.device().alloc_uninit_size(self.dtype, numel);
         wgpu_functions::queue_conv2d_transpose(
             self.device(),
             buffer_dest.buffer,
